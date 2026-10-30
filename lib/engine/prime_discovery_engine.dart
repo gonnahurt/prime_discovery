@@ -96,12 +96,10 @@ class PrimeDiscoveryEngine {
   bool isPrime = true;
 
   Future<void> discoverPrimes() async {
-    //print('2');
     for (int primeLittle = 3; primeLittle < 21; primeLittle += 2) {
       candidates++;
       while (primeLittle > initialPrimes[initPrime] && isPrime) {
         if (primeLittle % initialPrimes[initPrime] == 0) {
-          //print('Candidate $primeLittle is not prime');
           initPrime = 0;
           isPrime = false;
         } else {
@@ -109,16 +107,11 @@ class PrimeDiscoveryEngine {
         }
       }
       if (isPrime) {
-        //add to list of primes
-        //stdout.write('$primeLittle, ');
-        //print('$primeLittle, ');
         numPrimes++;
       } else {
         isPrime = true;
         initPrime = 0;
       }
-      //add to list
-
       initPrime = 0;
     }
 
@@ -132,26 +125,20 @@ class PrimeDiscoveryEngine {
       int rootSmall = sqrt(primeSmall).floor();
       while (rootSmall >= initialPrimes[initPrime] && isPrime) {
         if (primeSmall % initialPrimes[initPrime] == 0) {
-          //print('$primeSmall divides evenly by ${initialPrimes[initPrime]}');
-          //print('Candidate $primeSmall is not prime');
           initPrime = 0;
           isPrime = false;
         } else {
           initPrime++;
         }
       } //while
+
       if (isPrime) {
-        //add to list of primes
-        //stdout.write('$primeSmall, ');
-        //print('$primeSmall, ');
         initPrime = 0;
         numPrimes++;
       } else {
         isPrime = true;
         initPrime = 0;
       }
-      //primeSmall += 2;
-
       //add to list
       if (!firstRun) {
         if (miniWalker < lastMini) {
@@ -164,7 +151,6 @@ class PrimeDiscoveryEngine {
     }
 
     firstRun = true;
-    //for(int primeAverage = lastInitPrime; primeAverage < lastSupportedInt; primeAverage += 0){
     for (
       int primeAverage = lastInitPrime;
       primeAverage < 236888461;
@@ -174,8 +160,6 @@ class PrimeDiscoveryEngine {
       int rootSmall = sqrt(primeAverage).floor();
       while (rootSmall >= getNext(initPrime) && isPrime) {
         if (primeAverage % getNext(initPrime) == 0) {
-          //print('$primeSmall divides evenly by ${initialPrimes[initPrime]}');
-          //print('Candidate $primeSmall is not prime');
           initPrime = 0;
           isPrime = false;
         } else {
@@ -183,30 +167,21 @@ class PrimeDiscoveryEngine {
         }
       } //while
       if (isPrime) {
-        //add to list of primes
-        //print('$primeAverage, ');
         initPrime = 4; //since the wheel avoids all items divisible by 2, 3, 5, & 7 these checks are redundant
-        nextBatchPrimes[nextBatchWalker] = primeAverage;        
+        nextBatchPrimes[nextBatchWalker] = primeAverage;
         nextBatchPrimesInt++;
         numPrimes++;
 
         if (numPrimes % 1000 == 0) {
           print('Discovered: ${commas(numPrimes)}');
         }
-        //nextBatchPrimesInt = nextBatchWalker + 1;
         if (nextBatchPrimesInt == discovered) {
+          print(
+            'Writing file ${fileCount.toString().padLeft(5, '0')} '
+            'with ${commas(nextBatchPrimesInt)} primes...',
+          );
+
           //call function to asynchronously write to file
-          print("WRITE IT TO FILE!");
-          print('Prime number at index $nextBatchWalker: $primeAverage');
-
-                     print(nextBatchWalker);
-
-          print(nextBatchPrimes[12999995]);
-          print(nextBatchPrimes[12999996]);
-          print(nextBatchPrimes[12999997]);
-          print(nextBatchPrimes[12999998]);
-          print(nextBatchPrimes[12999999]); 
-
           await writeFile(fileCount);
         }
         nextBatchPrimesInt = nextBatchWalker + 1;
@@ -215,7 +190,6 @@ class PrimeDiscoveryEngine {
         isPrime = true;
         initPrime = 4;
       }
-      //primeSmall += 2;
 
       //wheel - following this pattern reduces numbers to check for primality
       //skipping all numbers divisible by 2,3,5,7
@@ -230,31 +204,7 @@ class PrimeDiscoveryEngine {
     }
     print('$numPrimes primes determined');
     print('$candidates numbers checked for primality');
-
-    try {
-      final integers = await readBinary(endian: Endian.little);
-
-      print("Read ${integers.length} 64-bit integers:");
-      //print(integers);
-      print('First: ${integers[0]}');
-      print('Second: ${integers[1]}');
-      print('Second: ${integers[2]}');
-      print('Second: ${integers[3]}');
-      print('Second: ${integers[4]}');
-      print('Tenth: ${integers[9]}');
-      print('Last: ${integers[discovered - 5]}');
-      print('Last: ${integers[discovered - 4]}');
-      print('Last: ${integers[discovered - 3]}');
-      print('Last: ${integers[discovered - 2]}');
-      print('Last: ${integers[discovered - 1]}');
-    } catch (e) {
-      print("Error: $e");
-    }
   }
-
-  /* for(int primeMega = 9223372036854775807, primeMega > 9223372036854775807; primeprimeAverage += 0){
-        
-    }*/
 
   //============================================
   //Smooth List transitions

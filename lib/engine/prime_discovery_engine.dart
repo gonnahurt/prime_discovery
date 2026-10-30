@@ -95,7 +95,7 @@ class PrimeDiscoveryEngine {
   int fileCount = 1;
   bool isPrime = true;
 
-  void discoverPrimes() {
+  Future<void> discoverPrimes() async {
     //print('2');
     for (int primeLittle = 3; primeLittle < 21; primeLittle += 2) {
       candidates++;
@@ -167,7 +167,7 @@ class PrimeDiscoveryEngine {
     //for(int primeAverage = lastInitPrime; primeAverage < lastSupportedInt; primeAverage += 0){
     for (
       int primeAverage = lastInitPrime;
-      primeAverage < 236888443;
+      primeAverage < 236888461;
       primeAverage += primeWalk[primeWalker]
     ) {
       candidates++;
@@ -186,21 +186,31 @@ class PrimeDiscoveryEngine {
         //add to list of primes
         //print('$primeAverage, ');
         initPrime = 4; //since the wheel avoids all items divisible by 2, 3, 5, & 7 these checks are redundant
-        nextBatchPrimes[nextBatchWalker] = primeAverage;
-        nextBatchWalker++;
+        nextBatchPrimes[nextBatchWalker] = primeAverage;        
         nextBatchPrimesInt++;
         numPrimes++;
-        
+
         if (numPrimes % 1000 == 0) {
-          print('Discovered: $numPrimes');
+          print('Discovered: ${commas(numPrimes)}');
         }
-        nextBatchPrimesInt = nextBatchWalker + 1;
+        //nextBatchPrimesInt = nextBatchWalker + 1;
         if (nextBatchPrimesInt == discovered) {
           //call function to asynchronously write to file
           print("WRITE IT TO FILE!");
           print('Prime number at index $nextBatchWalker: $primeAverage');
-          writeFile(fileCount);
+
+                     print(nextBatchWalker);
+
+          print(nextBatchPrimes[12999995]);
+          print(nextBatchPrimes[12999996]);
+          print(nextBatchPrimes[12999997]);
+          print(nextBatchPrimes[12999998]);
+          print(nextBatchPrimes[12999999]); 
+
+          await writeFile(fileCount);
         }
+        nextBatchPrimesInt = nextBatchWalker + 1;
+        nextBatchWalker++;
       } else {
         isPrime = true;
         initPrime = 4;
@@ -220,13 +230,36 @@ class PrimeDiscoveryEngine {
     }
     print('$numPrimes primes determined');
     print('$candidates numbers checked for primality');
+
+    try {
+      final integers = await readBinary(endian: Endian.little);
+
+      print("Read ${integers.length} 64-bit integers:");
+      //print(integers);
+      print('First: ${integers[0]}');
+      print('Second: ${integers[1]}');
+      print('Second: ${integers[2]}');
+      print('Second: ${integers[3]}');
+      print('Second: ${integers[4]}');
+      print('Tenth: ${integers[9]}');
+      print('Last: ${integers[discovered - 5]}');
+      print('Last: ${integers[discovered - 4]}');
+      print('Last: ${integers[discovered - 3]}');
+      print('Last: ${integers[discovered - 2]}');
+      print('Last: ${integers[discovered - 1]}');
+    } catch (e) {
+      print("Error: $e");
+    }
   }
 
   /* for(int primeMega = 9223372036854775807, primeMega > 9223372036854775807; primeprimeAverage += 0){
         
     }*/
 
-  //Function getNext smooths transition from List initPrimes to List nextBatchPrimes
+  //============================================
+  //Smooth List transitions
+  //From List initPrimes to List nextBatchPrimes
+  //============================================
   int getNext(int initPrime) {
     if (initPrime <= 45) {
       return initialPrimes[initPrime];
@@ -234,6 +267,9 @@ class PrimeDiscoveryEngine {
     return nextBatchPrimes[initPrime - 46];
   }
 
+  //======================
+  //Function Write to File
+  //======================
   Future<void> writeFile(int fileCount) async {
     // Create a space-separated string from the array
     try {
@@ -241,13 +277,12 @@ class PrimeDiscoveryEngine {
 
       //format numeric part of file name to always be 5 digits
       String formatted = fileCount.toString().padLeft(5, '0');
+      String fileName = '${formatted}prime.dat';
 
       //Define file path
       String primeStoragePath = r'D:\PrimeDiscovery';
-      String fileName = '${formatted}prime.dat';
-      File file = File(
-        '$primeStoragePath\\$fileName',
-      ); //need to determine how to select drive D: or Volume Name prime01
+
+      File file = File('$primeStoragePath\\$fileName');
 
       // Write asynchronously to .dat file
       await file.writeAsBytes(nextBatchPrimes.buffer.asUint8List());
@@ -256,9 +291,54 @@ class PrimeDiscoveryEngine {
 
       print('Write time: ${end.difference(start).inMilliseconds} ms');
 
-      print('$fileName created.');
+      //print('$fileName created.');
     } catch (e) {
       print('error writing file: $e');
     }
+  }
+
+  //=======================
+  //Function Read from file
+  //=======================
+  Future<List<int>> readBinary({Endian endian = Endian.little}) async {
+    //Define file path
+    String primeStoragePath = r'D:\PrimeDiscovery';
+
+    //format numeric part of file name to always be 5 digits
+    String formatted = fileCount.toString().padLeft(5, '0');
+    String fileName = '${formatted}prime.dat';
+    File file = File('$primeStoragePath\\$fileName');
+
+    // Validate file existence
+    if (!await file.exists()) {
+      throw FileSystemException("File not found", primeStoragePath);
+    }
+
+    // Read all bytes from the file
+    final bytes = await file.readAsBytes();
+
+    // Ensure file length is a multiple of 8 bytes (64-bit integers)
+    if (bytes.length % 8 != 0) {
+      throw FormatException("File length is not a multiple of 8 bytes.");
+    }
+
+    // Wrap bytes in ByteData for easy integer extraction
+    final byteData = ByteData.sublistView(bytes);
+
+    // Extract integers
+    final intCount = bytes.length ~/ 8;
+    final List<int> integers = List<int>.generate(
+      intCount,
+      (i) => byteData.getInt64(i * 8, endian),
+    );
+
+    return integers;
+  }
+
+  String commas(int n) {
+    return n.toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (match) => ',',
+    );
   }
 }

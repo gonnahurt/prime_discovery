@@ -21,7 +21,7 @@ class PrimeDiscoveryEngine {
   113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 
   197, 199], growable: false);
   // dart format on
-  int initPrime = 0;
+  int initPrime = 0; //Pointer for current
   int lastInitPrime = 199; //last prime in List initialPrimes
   int lastIndex = 45; //0-45
   //=========================================================================
@@ -31,17 +31,16 @@ class PrimeDiscoveryEngine {
 
   Int64List buffer1 = Int64List(13000000);
   int b1Walker = 0;
- 
+
   Int64List buffer2 = Int64List(13000000);
   int b2Walker = 0;
- 
-  List<int> currentRecoveryData = [1,1,1,2,0];
+
+  List<int> currentRecoveryData = [1, 1, 1, 2, 0];
   /*"version": 1,
   "fileCount": 1,
   "numPrimes": 1,
   "lastPrime": 2,
   "bufferPosition": 0 */
-
 
   //wheel for walking past even numbers and numbers divisible by 5 -
   //used for numbers 21 - 199
@@ -61,7 +60,8 @@ class PrimeDiscoveryEngine {
 
   int candidatesCount = 0; //count for number of candidates reviewed
   int numPrimes = 1; //count for number of primes determined starts at 1 because 2 is a freebie
-  int max_64Int = 9223372036854775807; //Max int64 candidate before switching to BigInt
+  int max_64Int =
+      9223372036854775807; //Max int64 candidate before switching to BigInt
   int maxBufferPrimes = 13000000;
   int fileCount = 1;
   bool isPrime = true;
@@ -142,12 +142,12 @@ class PrimeDiscoveryEngine {
         initPrime = 4; //since the wheel avoids all items divisible by 2, 3, 5, & 7 these checks are redundant
         primeCache[pcWalker] = primeAverage;
         numPrimes++;
-        pcWalker++; 
+        pcWalker++;
 
         if (numPrimes % 1000 == 0) {
           print('maxBufferPrimes  ${commas(numPrimes)}');
         }
-        if (pcWalker == maxBufferPrimes) {
+        if (pcWalker % maxBufferPrimes == 0) {
           print(
             'Writing file ${fileCount.toString().padLeft(5, '0')} '
             'with ${commas(pcWalker)} primes...  :The last determined prime was ${commas(primeAverage)}',
@@ -157,8 +157,6 @@ class PrimeDiscoveryEngine {
           await writeFile(fileCount);
           fileCount++;
         }
-        
-        
       } else {
         isPrime = true;
         initPrime = 4;
@@ -192,7 +190,17 @@ class PrimeDiscoveryEngine {
     if (initPrime <= 45) {
       return initialPrimes[initPrime];
     }
-    return primeCache[initPrime - 46];
+    if (initPrime > 45 && initPrime <= 26000045) {
+      return primeCache[initPrime - 46];
+    }
+    if (initPrime > 26000045 && initPrime <= 39000045) {
+      return buffer1[initPrime - 26000046];
+    }
+    if (initPrime > 39000045 && initPrime <= 52000045) {
+      return buffer2[initPrime - 39000046];
+    }
+
+    throw Exception('getNext() unsupported index: $initPrime');
   }
 
   //======================
@@ -295,12 +303,12 @@ class PrimeDiscoveryEngine {
   //Create JSON file
   Future<void> jsonCreate() async {
     final state = {
-  "version": 1,
-  "fileCount": 1,
-  "numPrimes": 1,
-  "lastPrime": 2,
-  "bufferPosition": 0
-};
+      "version": 1,
+      "fileCount": 1,
+      "numPrimes": 1,
+      "lastPrime": 2,
+      "bufferPosition": 0,
+    };
     final jsonString = jsonEncode(state);
 
     final file = File('state.json');

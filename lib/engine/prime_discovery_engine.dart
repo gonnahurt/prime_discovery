@@ -2,13 +2,18 @@
 Author: Kvoc
 Erosthenes Sieve
 Date Started: 10/29/26
+Last Worked:  11/01/26
 =============================*/
 
-import 'dart:convert';
+//import 'dart:convert';
 import 'dart:math';
 import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
+
+import '../data_management/json_manager.dart';
+import '../data_management/file_manager.dart';
+import '../data_management/statistics_manager.dart';
 
 class PrimeDiscoveryEngine {
   final List<BigInt> megaPrimes = List<BigInt>.filled(10, BigInt.zero);
@@ -27,22 +32,13 @@ class PrimeDiscoveryEngine {
   //=========================================================================
 
   Int64List primeCache = Int64List(150000000);
-  int pcWalker = 0;
+  int walker = 0;
 
   Int64List buffer1 = Int64List(13000000);
   int b1Walker = 0;
 
   Int64List buffer2 = Int64List(13000000);
   int b2Walker = 0;
-
-  List<int> currentRecoveryData = [1, 1, 1, 2, 0];
-  //Update JSON file when new file written & Every 5 or 10 mins.
-  //"version": 1,       No Variable: this is the JSON format?  If we change the format it becomes version 2?
-  //"fileCount": 1,     Var fileCount: this is number of files created, containing 13million prime 64xInt
-  //"numPrimes": 1,     Var numPrimes: This is the current number of all primes 2 - our last determine prime
-  //"lastPrime": 2,     Var lastPrime: This is the last determined prime number
-  //"wheelPosition":0   Var primeWalker necesarry to resume using the wheel on new startup.
-  //                    I assume this could be alternatively handled by a calculation
 
   //wheel for walking past even numbers and numbers divisible by 5 -
   //used for numbers 21 - 199
@@ -59,6 +55,7 @@ class PrimeDiscoveryEngine {
   int primeWalker = 0;
   final int lastWalker = 47;
 
+  int initPrimeStart = 4;
   int candidatesCount = 0; //count for number of candidates reviewed
   int numPrimes = 1; //count for number of primes determined starts at 1 because 2 is a freebie
   int lastPrime = 2; //tracks last prime number discovered
@@ -66,28 +63,31 @@ class PrimeDiscoveryEngine {
       9223372036854775807; //Max int64 candidate before switching to BigInt
   int maxBufferPrimes = 13000000;
   int fileCount = 1;
-  static const String primeStoragePath = r'D:\PrimeDiscovery';
-  int version = 1; //JSON format version
-  int fiveMins = 300000;
+  static const String primeStoragePath = r'P:\PrimeDiscovery';
+  int versionNum = 1; //JSON format version
+  Duration fiveMins = const Duration(
+    milliseconds: 300000,
+  ); //1,000ms(= 1 second) x 60 = 60,000ms (= 1min) * 5 = 300,000ms (=5 mins)
 
   bool firstRun = true;
   bool isPrime = true;
 
   Future<void> determineFirstRun() async {
-    firstRun = await jsonSearch();
+    firstRun = await jsonSearch(primeStoragePath);
     if (firstRun == true) {
-      await jsonCreate();
+      await jsonCreate(primeStoragePath);
     } else {
-      await recoveryRestart();
+      //await recoveryRestart();
     }
   }
 
-  //==============================================================
-  //primeTiny handles determination for numbers from 3 - 20
-  //it only avoids even numbers by primeTiny +=2 in the for loop
-  //==============================================================
   Future<void> discoverPrimes() async {
     DateTime start = DateTime.now();
+    await determineFirstRun();
+    //==============================================================
+    //primeTiny handles determination for numbers from 3 - 20
+    //it only avoids even numbers by primeTiny +=2 in the for loop
+    //==============================================================
     for (int primeTiny = 3; primeTiny < 21; primeTiny += 2) {
       candidatesCount++;
       while (primeTiny > initialPrimes[initPrime] && isPrime) {
@@ -100,12 +100,15 @@ class PrimeDiscoveryEngine {
       }
       if (isPrime) {
         numPrimes++;
+        lastPrime = primeTiny;
       } else {
         isPrime = true;
         initPrime = 0;
       }
       initPrime = 0;
     }
+    // 20 - 3 = 17 total integers : candidatesCount = 9 : 20 = last int checked : num primes = 7 : 7 primes in 17 integers is 42% : 9 candidates in 18 total integers is 50% of all integers processed
+    //
     //=============
     //End primeTiny
     //=============
@@ -115,6 +118,8 @@ class PrimeDiscoveryEngine {
     //primeSmall uses a wheel to avoid multiples of 2 & 5
     //==========================================================
     bool firstRun = true;
+    //198 - 21 = 177 total integers : candidatesCount = 9 : 197 = last int checked : num primes = 7 : 7 primes in 17 integers is 42% : 9 candidates in 18 total integers is 50% of all integers processed
+    //lastInitPrime - primeSmall = 177 : CandidateCount = ? : lastPrime =
     for (
       int primeSmall = 21;
       primeSmall < lastInitPrime;
@@ -163,15 +168,17 @@ class PrimeDiscoveryEngine {
     //uses a wheel to avoid multiples of 2,3,5 & 7
     //============================================
     firstRun = true;
-    for (
+    DateTime recoveryState = DateTime.now(); //initialize json update time
+    for ( 
       int primeAverage = lastInitPrime;
       primeAverage < maxInt64;
-      primeAverage += primeWheel[primeWalker]
-    ) {
+      primeAverage += primeWheel[primeWalker]) 
+    { //for each candidate
       candidatesCount++;
-      int rootSmall = sqrt(primeAverage).floor();
-      while (rootSmall >= getNext(initPrime) && isPrime) {
-        if (primeAverage % getNext(initPrime) == 0) {
+      int rootSmall = sqrt(primeAverage).floor(); //sqrt of current candidate
+      //int bufferDetermined = getNextRead(initPrime);
+      while (rootSmall >= getNextRead(initPrime) && isPrime) {
+        if (primeAverage % getNextRead(initPrime) == 0) {
           initPrime = 0;
           isPrime = false;
         } else {
@@ -180,36 +187,45 @@ class PrimeDiscoveryEngine {
       } //while
       if (isPrime) {
         initPrime = 4; //since the wheel avoids all items divisible by 2, 3, 5, & 7 these checks are redundant
-        primeCache[pcWalker] = primeAverage;
+        primeCache[walker] = primeAverage;
         lastPrime = primeAverage;
         numPrimes++;
-        pcWalker++;
+        walker++;
 
         //write number of primes located to terminal
         //increments of 1000
-        if (numPrimes % 1000 == 0) {
+        if (numPrimes % 10000 == 0) {
           print('maxBufferPrimes  ${commas(numPrimes)}');
         }
 
         //create a file storing the last 13million primes located
         //13million generates a binary file just under 100MBs
-        if (pcWalker % maxBufferPrimes == 0) {
+        //if (walker % maxBufferPrimes == 0) {
+        if (walker % 1000000 == 0) {
           print(
             'Writing file ${fileCount.toString().padLeft(5, '0')} '
-            'with ${commas(pcWalker)} primes...  :The last determined prime was ${commas(primeAverage)}',
+            'with primes: ${commas(walker-1000000)} thru ${commas(walker)} || The last determined prime was ${commas(primeAverage)}',
           );
+          Duration elapsed = DateTime.now().difference(recoveryState);
 
+          print('first Million Determined in: ${elapsed.inSeconds} seconds');
+
+          await jsonWrite(
+            versionNum,
+            fileCount,
+            numPrimes,
+            lastPrime,
+            primeWalker,
+            primeStoragePath,
+          ); //UPDATE recovery json file every time new bin file is created.
+
+          recoveryState = DateTime.now(); //reset json update time
           //call function to asynchronously write to file
-          await writeFile(fileCount);
+          await writeFile(
+            primeStoragePath : primeStoragePath, 
+            fileCount : fileCount, 
+            primeCache : primeCache);
           fileCount++;
-
-          //Update JSON file when new file written & Every 5 or 10 mins.
-          //"version": 1,       No Variable: this is the JSON format?  If we change the format it becomes version 2?
-          //"fileCount": 1,     Var fileCount: this is number of files created, containing 13million prime 64xInt
-          //"numPrimes": 1,     Var numPrimes: This is the current number of all primes 2 - our last determine prime
-          //"lastPrime": 2,     Var lastPrime: This is the last determined prime number
-          //"wheelPosition":0   Var primeWalker necesarry to resume using the wheel on new startup.
-          //                    I assume this could be alternatively handled by a calculation
         }
         //End Create File
       } else {
@@ -217,14 +233,12 @@ class PrimeDiscoveryEngine {
         initPrime = 4;
       }
 
-      //======================================
+      //=====================================
       //Wheel for primeAverage
-      //miniWalker points to the correct index
-      //in List miniWheel
-      //avoiding mutiples of 2 & 5
-      //======================================
-      //wheel - following this pattern reduces numbers to check for primality
-      //skipping all numbers divisible by 2,3,5,7
+      //following this pattern reduces
+      //       numbers to check for primality
+      //skipping numbers divisible by 2,3,5,7
+      //=====================================
       if (!firstRun) {
         if (primeWalker < lastWalker) {
           primeWalker++;
@@ -233,6 +247,19 @@ class PrimeDiscoveryEngine {
         }
       }
       firstRun = false;
+      DateTime end = DateTime.now();
+      Duration elapsed = end.difference(recoveryState);
+      if (elapsed >= fiveMins) {
+        await jsonWrite(
+          versionNum,
+          fileCount,
+          numPrimes,
+          lastPrime,
+          primeWalker,
+          primeStoragePath,
+        ); //UPDATE recovery json file every time new bin file is created.}
+        recoveryState = DateTime.now(); //reset json update time
+      }
     }
     //================
     //End primeAverage
@@ -240,18 +267,17 @@ class PrimeDiscoveryEngine {
 
     print('$numPrimes primes determined');
     print('$candidatesCount numbers checked for primality');
-    DateTime end = DateTime.now();
-    Duration elapsed = end.difference(start);
+    Duration elapsed = DateTime.now().difference(recoveryState);
 
     print('first 13 Million Determined in: ${elapsed.inSeconds} seconds');
     //print('first 13 Million Determined in: ${end.difference(start).inMilliseconds} ms');
   }
 
   //============================================
-  //Smooth List transitions
-  //From List initPrimes to List primeCache
+  //Smooth List transitions when reading primes 
+  //From buffers
   //============================================
-  int getNext(int initPrime) {
+  int getNextRead(int initPrime) {
     if (initPrime <= 45) {
       return initialPrimes[initPrime];
     }
@@ -265,75 +291,7 @@ class PrimeDiscoveryEngine {
       return buffer2[initPrime - 39000046];
     }
 
-    throw Exception('getNext() unsupported index: $initPrime');
-  }
-
-  //======================
-  //Function Write to File
-  //======================
-  Future<void> writeFile(int fileCount) async {
-    // Create a space-separated string from the array
-    try {
-      DateTime start = DateTime.now();
-
-      //format numeric part of file name to always be 5 digits
-      String formatted = fileCount.toString().padLeft(5, '0');
-      String fileName = '${formatted}prime.dat';
-
-      //Define file path
-      String primeStoragePath = r'D:\PrimeDiscovery';
-
-      File file = File('$primeStoragePath\\$fileName');
-
-      // Write asynchronously to .dat file
-      await file.writeAsBytes(primeCache.buffer.asUint8List());
-
-      DateTime end = DateTime.now();
-
-      print('Write time: ${end.difference(start).inMilliseconds} ms');
-
-      //print('$fileName created.');
-    } catch (e) {
-      print('error writing file: $e');
-    }
-  }
-
-  //=======================
-  //Function Read from file
-  //=======================
-  Future<List<int>> readBinary({Endian endian = Endian.little}) async {
-    //Define file path
-    String primeStoragePath = r'D:\PrimeDiscovery';
-
-    //format numeric part of file name to always be 5 digits
-    String formatted = fileCount.toString().padLeft(5, '0');
-    String fileName = '${formatted}prime.dat';
-    File file = File('$primeStoragePath\\$fileName');
-
-    // Validate file existence
-    if (!await file.exists()) {
-      throw FileSystemException("File not found", primeStoragePath);
-    }
-
-    // Read all bytes from the file
-    final bytes = await file.readAsBytes();
-
-    // Ensure file length is a multiple of 8 bytes (64-bit integers)
-    if (bytes.length % 8 != 0) {
-      throw FormatException("File length is not a multiple of 8 bytes.");
-    }
-
-    // Wrap bytes in ByteData for easy integer extraction
-    final byteData = ByteData.sublistView(bytes);
-
-    // Extract integers
-    final intCount = bytes.length ~/ 8;
-    final List<int> integers = List<int>.generate(
-      intCount,
-      (i) => byteData.getInt64(i * 8, endian),
-    );
-
-    return integers;
+    throw Exception('getNextRead() unsupported index: $initPrime');
   }
 
   String commas(int n) {
@@ -347,87 +305,10 @@ class PrimeDiscoveryEngine {
     return (ms / 1000).floor();
   }
 
-  //=======================
-  //All things JSON related
-  //=======================
-  //Verify JSON file exists or create it
-  Future<bool> jsonSearch() async {
-    //String primeStoragePath = r'D:\PrimeDiscovery';
-    String fileName = 'state.json';
-    File file = File('$primeStoragePath\\$fileName');
-
-    // Validate file existence
-    return !await file.exists();
-  }
-
-  //Create JSON file
-  Future<void> jsonCreate() async {
-    final Map<String, dynamic> recoveryData = {
-      "version": 1,
-      "fileCount": 1,
-      "numPrimes": 1,
-      "lastPrime": 2,
-      "wheelPosition": 0,
-    };
-
-    final File jsonFile = File('$primeStoragePath\\state.json');
-
-    try {
-      // 3. Convert the Dart map into a pretty-printed JSON string
-      // (Using JsonEncoder.withIndent('  ') adds clean line breaks and indents)
-      final String jsonString = const JsonEncoder.withIndent('  ')
-          .convert(recoveryData);
-
-      // 4. Write the string asynchronously to the file
-      await jsonFile.writeAsString(jsonString);
-
-      print('Successfully created JSON file at: ${jsonFile.absolute.path}');
-    } catch (e) {
-      print('An error occurred while creating the file: $e');
-    }
-  }
-
-  //Write to JSON file
-  Future<void> jsonWrite() async {
-    final Map<String, dynamic> recoveryData = {
-      "version": 1,
-      "fileCount": fileCount,
-      "numPrimes": numPrimes,
-      "lastPrime": lastPrime,
-      "wheelPosition": primeWalker,
-    }; //nothing yet
-
-    final File jsonFile = File('$primeStoragePath\\state.json');
-
-    try {
-      // 3. Convert the Dart map into a pretty-printed JSON string
-      // (Using JsonEncoder.withIndent('  ') adds clean line breaks and indents)
-      final String jsonString = const JsonEncoder.withIndent('  ')
-          .convert(recoveryData);
-
-      // 4. Write the string asynchronously to the file
-      await jsonFile.writeAsString(jsonString);
-
-      print('Successfully created JSON file at: ${jsonFile.absolute.path}');
-    } catch (e) {
-      print('An error occurred while creating the file: $e');
-    }
-  }
-
-  //Read from JSON file
-  Future<Map<String, dynamic>> jsonRead() async {
-    final String jsonString = await File('$primeStoragePath\\state.json')
-        .readAsString();
-    return jsonDecode(jsonString) as Map<String, dynamic>;
-  }
-  //=============================
-  //End - all things JSON related
-  //=============================
-
   Future<void> recoveryRestart() async {
     //assign critical variables
-    final Map<String, dynamic> recoveryData = await jsonRead();
-    version = recoveryData['version'];
+    final Map<String, dynamic> recoveryData = await jsonRead(primeStoragePath);
+    versionNum = recoveryData['version'];
     fileCount = recoveryData['fileCount'];
     numPrimes = recoveryData['numPrimes'];
     lastPrime = recoveryData['lastPrime'];
@@ -435,4 +316,6 @@ class PrimeDiscoveryEngine {
 
     //Load files into arrays as needed
   }
+
+  Future<void> wheelSelect() async {}
 }

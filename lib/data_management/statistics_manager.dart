@@ -5,7 +5,7 @@
 //DONE: Average gap between primes overtime (starting from 2 - wherever we are)
 //DONE: Average gap between primes last 1million (starting from 1 - 1million, 1,000,001 - 2million, 2,000,001 - 3million  etc.)
 //DONE: largest prime gap determined
-//DONE: Search Rate: candidatesReviewed/sec * primesDiscovered/sec
+//DONE: Search Rate: candidatesReviewed/sec * primesDiscoveredLastSec/sec
 //Next File Count down - no biggie early on but when into bigInt territory could be interesting
 
 /*
@@ -36,77 +36,87 @@ Candidates/sec:
 //Calls all calculations and generates the
 //line to be printed or appended to log
 //========================================
-String runStats({
-  required int numPrimes,
-  required int lastPrime,
-  required int numGaps,
-  required int gapSumTotal,
-  required int millNumGaps,
-  required int millGapSumTotal,
+import 'dart:io';
+import 'dart:async';
+
+import 'package:prime_discovery/models/recovery_model.dart';
+import 'package:prime_discovery/models/config_model.dart';
+import 'package:prime_discovery/models/session_model.dart';
+
+import 'time_manager.dart';
+
+Future<String> runStatistics({
+  required RecoveryData recoveryData,
+  required ConfigData configData,
+  required SessionData sessionData,
   required int currentPrime,
-  required int largestGap,
   required int candidatesCount,
   required int prevCandidateCount,
   required int prevDiscovered,
-  required int primesDiscovered,
-}) {
+  required int primesDiscoveredLastSec,
+}) async {
   String lastSec = inTheLastSecond(
     //this print is created in the function
     candidatesCount: candidatesCount,
     prevCandidateCount: prevCandidateCount,
     prevDiscovered: prevDiscovered,
-    primesDiscovered: primesDiscovered,
+    primesDiscoveredLastSec: primesDiscoveredLastSec,
   );
 
-  //$pVarDensity% of all numbers up to $lastPrime are prime numbers
-  String pVarDensity = pDensity(numPrimes: numPrimes, lastPrime: lastPrime);
+  //$pVarDensity% of all numbers up to $priorPrime are prime numbers
+  String pVarDensity = pDensity(recoveryData: recoveryData);
   String pvdOut =
-      ('$pVarDensity: % of all numbers up to $lastPrime are prime numbers ');
+      ('$pVarDensity: % of all numbers up to ${recoveryData.currentPrime} are prime numbers ');
 
   //The average gap since prime 2 is: $lifetimeGap
-  String lifetimeGap = gapAverageLifetime(
-    numGaps: numGaps,
-    gapSumTotal: gapSumTotal,
-  );
+  String lifetimeGap = gapAverageLifetime(recoveryData: recoveryData);
+
   String lgOut = ('$lifetimeGap: Average gap since prime 2');
 
   //$millionGap : Average gap size between current prime - 1000000 thru current prime
   String millionGap = gapAverageMillionPrimeLifespan(
-    millNumGaps: millNumGaps,
-    millGapSumTotal: millGapSumTotal,
+    millNumGaps: recoveryData.millNumGaps,
+    millGapSumTotal: recoveryData.millGapSumTotal,
   );
   String mgOut =
       ('$millionGap : Average gap size between current prime - 1000000 thru current prime');
 
   //$largestPrimeGap : Largest Gap between determined primes
   int largestPrimeGap = largestGapBetweenPrimes(
-    lastPrime: lastPrime,
-    currentPrime: currentPrime,
-    largestGap: largestGap,
+    recoveryData: recoveryData,
+    sessionData: sessionData,
+    
   );
   String lpgOut = ('$largestPrimeGap : Largest Gap between determined primes');
-
-  String formattedStats = '''
+  String cycle = await timeSinceFirstRun(recoveryData, configData);
+  String active = await totTimeActivelyRunning(recoveryData, configData);
+  String session = await currentRunTime(recoveryData, configData);
+  String formattedStats =
+      '''
       $lastSec
       $pvdOut
       $lgOut
       $mgOut
       $lpgOut
+      $cycle
+      $active
+      $session
+      =========================
       ''';
-
+    recoveryData.currentPrime = sessionData.priorPrime;
   return (formattedStats);
 }
 //============
-//END: runStats
+//END: runStatistics
 //============
 
 //===============================================================
 //Prime density : Percentage of primed determined in Last integer
 //can be run when ever we choose to display
 //===============================================================
-String pDensity({required int numPrimes, required int lastPrime}) {
-  double totPrimes = numPrimes.toDouble();
-  double finalPrime = lastPrime.toDouble();
+String pDensity({required RecoveryData recoveryData}) {
+  double totPrimes = recoveryData.numPrimes.toDouble();
+  double finalPrime = recoveryData.currentPrime.toDouble();
   double pDensityPercent = ((totPrimes / finalPrime * 100));
   return (formatToThreePlaces(pDensityPercent));
 }
@@ -118,9 +128,9 @@ String pDensity({required int numPrimes, required int lastPrime}) {
 //Lifetime average of gap size
 //Average gap between primes over lifetime (starting from 2 - wherever we are
 //============================================================================
-String gapAverageLifetime({required int numGaps, required int gapSumTotal}) {
-  double gapCount = numGaps.toDouble();
-  double gapSum = gapSumTotal.toDouble();
+String gapAverageLifetime({required RecoveryData recoveryData}) {
+  double gapCount = recoveryData.numGaps.toDouble();
+  double gapSum = recoveryData.gapSumTotal.toDouble();
   double lifetimeGap = gapSum / gapCount;
   return (formatToThreePlaces(lifetimeGap));
 }
@@ -149,16 +159,16 @@ String gapAverageMillionPrimeLifespan({
 //Must be run each time a prime is discovered
 //===========================================
 int largestGapBetweenPrimes({
-  required int lastPrime,
-  required int currentPrime,
-  required int largestGap,
+  required RecoveryData recoveryData,
+  required SessionData sessionData,  
+
 }) {
-  int currentGap = currentPrime - lastPrime;
+  sessionData.currentGap = recoveryData.currentPrime - sessionData.priorPrime - 1;
   //int largestGap;
-  if (currentGap > largestGap) {
-    largestGap = currentGap;
+  if (sessionData.currentGap > recoveryData.largestGap) {
+    recoveryData.largestGap = sessionData.currentGap;
   }
-  return (largestGap);
+  return (recoveryData.largestGap);
 }
 //=======================================
 //END: Largest located gap between primes
@@ -171,10 +181,10 @@ String inTheLastSecond({
   required int candidatesCount,
   required int prevCandidateCount,
   required int prevDiscovered,
-  required int primesDiscovered,
+  required int primesDiscoveredLastSec,
 }) {
   int candidatesTestedLastSec = candidatesCount - prevCandidateCount;
-  int primedDiscoveredLastSec = primesDiscovered - prevDiscovered;
+  int primedDiscoveredLastSec = primesDiscoveredLastSec - prevDiscovered;
   String inLastSecond =
       ('In the last second: $candidatesTestedLastSec were tested & $primedDiscoveredLastSec were determined');
   return (inLastSecond);
@@ -193,8 +203,33 @@ String formatToThreePlaces(double value) {
 //END: format double to 3 spaces for continuity
 //=============================================
 
-//Write to log
-void writeToLog({required String formattedStats}) {
+//===================
+//Function Create log
+//===================
+Future<void> logCreate(RecoveryData recoveryData, ConfigData configData) async {
+  DateTime now = DateTime.now();
+  String standardString = now.toString();
+  //final separator = Platform.pathSeparator;
+  final File logFile = File('${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}\\${configData.fileNameLog}');
+  await logFile.writeAsString('''
+Statistics-
+File Created: $standardString
+==================================================
 
+''');
+}
+
+//Write to log
+Future<void> appendToLog({
+  required String formattedStats, required RecoveryData recoveryData, required ConfigData configData
+}) async {
+  //final separator = Platform.pathSeparator;
+  final File logFile = File('${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}\\{$configData.fileNameLog}');
+  try {
+    await logFile.writeAsString(formattedStats, mode: FileMode.append);
+    print('Content appended successfully.');
+  } catch (e) {
+    print('Error appending to file: $e');
+  }
 }
 //END: Write to log

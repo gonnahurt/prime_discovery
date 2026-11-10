@@ -1,39 +1,60 @@
 import 'dart:convert';
 import 'dart:io';
 
-const String primeStoragePath = r'D:\PrimeDiscovery';
-const String fileName = '00000state.json';
+import 'package:prime_discovery/models/config_model.dart';
+
+import '../models/recovery_model.dart';
 
 //=======================
 //All things JSON related
 //=======================
 //Verify JSON file exists or create it
-Future<bool> jsonSearch(String primeStoragePath) async {
-  //String primeStoragePath = r'D:\PrimeDiscovery';
-  //String fileName = 'state.json';
-  File file = File('$primeStoragePath\\$fileName');
-
+//Called by startup_manager -  initial query calls determine first run
+//first run calls json search
+Future<bool> jsonSearch(
+  RecoveryData recoveryData,
+  ConfigData configData,
+) async {
+  File file = File(
+    '${recoveryData.primeStorageFolderName}\\${configData.fileNameJson}',
+  );
   // Validate file existence
   return !await file.exists();
-}
+} //End jsonSearch
 
 //Create JSON file
-Future<void> jsonCreate(String primeStoragePath) async {
-  final Map<String, dynamic> recoveryData = {
-    "version": 1,
-    "fileCount": 1,
-    "numPrimes": 1,
-    "lastPrime": 2,
-    "wheelPosition": 0,
+Future<void> jsonCreate(
+  RecoveryData recoveryData,
+  ConfigData configData,
+  DateTime initialRunTime,
+) async {
+  final Map<String, dynamic> stateData = {
+    "version": recoveryData.versionNum,
+    "fileCount": recoveryData.fileCount,
+    "numPrimes": recoveryData.numPrimes,
+    "lastPrime": recoveryData.currentPrime,
+    "currentPrime": recoveryData.currentPrime,
+    "wheelPosition": recoveryData.wheelPosition,
+    "dateTimeCycleRun": recoveryData.cycleStartTime,
+    "totalTimeActive": recoveryData.totalRuntime,
+    "primeStorageFolderName": recoveryData.primeStorageFolderName,
+    "currentDriveLetter": recoveryData.currentDriveLetter,    
+    "numberOfGaps": recoveryData.numGaps,
+    "sumOfAllGaps": recoveryData.gapSumTotal,
+    "numOfGapsInLastMillion": recoveryData.millNumGaps,
+    "sumOfGapsInLastMillion": recoveryData.millGapSumTotal,
+    "largestGapFound": recoveryData.largestGap,
   };
 
-  final File jsonFile = File('$primeStoragePath\\$fileName');
+  File jsonFile = File(
+    '${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}\\${configData.fileNameJson}',
+  );
 
   try {
     // 3. Convert the Dart map into a pretty-printed JSON string
     // (Using JsonEncoder.withIndent('  ') adds clean line breaks and indents)
     final String jsonString = const JsonEncoder.withIndent('  ')
-        .convert(recoveryData);
+        .convert(stateData);
 
     // 4. Write the string asynchronously to the file
     await jsonFile.writeAsString(jsonString);
@@ -42,32 +63,37 @@ Future<void> jsonCreate(String primeStoragePath) async {
   } catch (e) {
     print('An error occurred while creating the file: $e');
   }
-}
+} //End jsonCreate
 
 //Write to JSON file
-Future<void> jsonWrite(
-  int versionNum,
-  int fileCount,
-  int numPrimes,
-  int lastPrime,
-  int primeWalker,
-  String primeStoragePath,
-) async {
-  final Map<String, dynamic> recoveryData = {
-    "version": versionNum,
-    "fileCount": fileCount,
-    "numPrimes": numPrimes,
-    "lastPrime": lastPrime,
-    "wheelPosition": primeWalker,
-  }; //nothing yet
+Future<void> jsonWrite(RecoveryData recoveryData, ConfigData configData) async {
+  final Map<String, dynamic> stateData = {
+    "version": recoveryData.versionNum,
+    "fileCount": recoveryData.fileCount,
+    "numPrimes": recoveryData.numPrimes,
+    "lastPrime": recoveryData.currentPrime,
+    "wheelPosition": recoveryData.wheelPosition,
+    "dateTimeCycleRun": recoveryData.cycleStartTime,
+    //"dateTimeSessionRun": configData.sessionStartTime,
+    "totalTimeActive": recoveryData.totalRuntime,
+    "primeStorageFolderName": recoveryData.primeStorageFolderName,
+    "primeStorageDriveLetter": recoveryData.currentDriveLetter,
+    "numberOfGaps": recoveryData.numGaps,
+    "sumOfAllGaps": recoveryData.gapSumTotal,
+    "numOfGapsInLastMillion": recoveryData.millNumGaps,
+    "sumOfGapsInLastMillion": recoveryData.millGapSumTotal,
+    "largestGapFound": recoveryData.largestGap,
+  }; 
 
-  final File jsonFile = File('$primeStoragePath\\$fileName');
+  final File jsonFile = File(
+    '${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}\\${configData.fileNameJson}',
+  );
 
   try {
     // 3. Convert the Dart map into a pretty-printed JSON string
     // (Using JsonEncoder.withIndent('  ') adds clean line breaks and indents)
     final String jsonString = const JsonEncoder.withIndent('  ')
-        .convert(recoveryData);
+        .convert(stateData);
 
     // 4. Write the string asynchronously to the file
     await jsonFile.writeAsString(jsonString);
@@ -76,14 +102,16 @@ Future<void> jsonWrite(
   } catch (e) {
     print('An error occurred while creating the file: $e');
   }
-}
+} //End jsonWrite
 
 //Read from JSON file
-Future<Map<String, dynamic>> jsonRead(String primeStoragePath) async {
-  final String jsonString = await File('$primeStoragePath\\$fileName')
-      .readAsString();
+Future<Map<String, dynamic>> jsonRead(
+  RecoveryData recoveryData,
+  ConfigData configData,
+) async {
+  final String jsonString = await File(
+    '${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}\\${configData.fileNameJson}',
+  ).readAsString();
   return jsonDecode(jsonString) as Map<String, dynamic>;
-}
-//=============================
-//End - all things JSON related
-//=============================
+} //End jsonRead
+//End - File

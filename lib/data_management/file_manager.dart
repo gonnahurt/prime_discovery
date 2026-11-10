@@ -2,24 +2,25 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
+
+import 'package:prime_discovery/models/recovery_model.dart';
 //import '../engine/prime_discovery_engine.dart';
   
   //======================
   //Function Write to File
   //======================
-  Future<void> writeFile({
-    required int fileCount, 
-    required String primeStoragePath,
-    required Int64List primeCache}) async {
+  Future<void> writeFile(
+    RecoveryData recoveryData,
+    Int64List primeCache) async {
     // Create a space-separated string from the array
     try {
       DateTime start = DateTime.now();
 
       //format numeric part of file name to always be 5 digits
-      String formatted = fileCount.toString().padLeft(5, '0');
+      String formatted = recoveryData.fileCount.toString().padLeft(5, '0');
       String fileName = '${formatted}prime.dat';
 
-      File file = File('$primeStoragePath\\$fileName');
+      File file = File('${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}\\${fileName}');
 
       // Write asynchronously to .dat file
       await file.writeAsBytes(primeCache.buffer.asUint8List());
@@ -36,17 +37,16 @@ import 'dart:typed_data';
   //Function Read from file
   //=======================
   Future<List<int>> readBinary({
-    required int fileCount,
-    required String primeStoragePath,
+    required RecoveryData recoveryData,
     Endian endian = Endian.little}) async {
     //format numeric part of file name to always be 5 digits
-    String formatted = fileCount.toString().padLeft(5, '0');
+    String formatted = recoveryData.fileCount.toString().padLeft(5, '0');
     String fileName = '${formatted}prime.dat';
-    File file = File('$primeStoragePath\\$fileName');
+    File file = File('$recoveryData.primeStoragePath\\$fileName');
 
     // Validate file existence
     if (!await file.exists()) {
-      throw FileSystemException("File not found", primeStoragePath);
+      throw FileSystemException("File not found", ('${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}\\${fileName}'));
     }
 
     // Read all bytes from the file
@@ -69,3 +69,5 @@ import 'dart:typed_data';
 
     return integers;
   } //END Read from file
+
+

@@ -1,23 +1,62 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 void main() {
-  const targetCount = 50000000;
+  buildWheel(
+    name: 'wheel_07',
+    primes: [2, 3, 5, 7],
+  );
 
-  final primes = [2, 3, 5, 7, 11, 13, 17, 19];
+  buildWheel(
+    name: 'wheel_11',
+    primes: [2, 3, 5, 7, 11],
+  );
 
-  // Product of wheel primes
-  const wheelSize = 9699690;
+  buildWheel(
+    name: 'wheel_13',
+    primes: [2, 3, 5, 7, 11, 13],
+  );
 
-  // φ(wheelSize)
-  const wheelLength = 1658880;
+  buildWheel(
+    name: 'wheel_17',
+    primes: [2, 3, 5, 7, 11, 13, 17],
+  );
 
-  print('Generating survivors...');
+  buildWheel(
+    name: 'wheel_19',
+    primes: [2, 3, 5, 7, 11, 13, 17, 19],
+  );
+
+  print('\nDone.');
+}
+
+void buildWheel({
+  required String name,
+  required List<int> primes,
+}) {
+  print('\n====================================');
+  print('Building $name');
+  print('====================================');
+
+  //--------------------------------------------------
+  // Compute wheel size
+  //--------------------------------------------------
+
+  int wheelSize = 1;
+
+  for (final p in primes) {
+    wheelSize *= p;
+  }
+
+  print('Wheel Product: $wheelSize');
+
+  //--------------------------------------------------
+  // Generate survivors
+  //--------------------------------------------------
 
   final survivors = <int>[];
 
-  int n = 1;
-
-  while (survivors.length < targetCount) {
+  for (int n = 1; n < wheelSize; n++) {
     bool survives = true;
 
     for (final p in primes) {
@@ -30,27 +69,11 @@ void main() {
     if (survives) {
       survivors.add(n);
     }
-
-    n++;
-
-    if (survivors.length % 1000000 == 0) {
-      print(
-        'Generated ${survivors.length} survivors...',
-      );
-    }
   }
 
-  print('\n====================================');
-  print('GENERATION COMPLETE');
-  print('====================================');
-  print('Survivors Found : ${survivors.length}');
-  print('Largest Checked : ${n - 1}');
-
-  //----------------------------------------------------
-  // Build gaps
-  //----------------------------------------------------
-
-  print('\nGenerating gaps...');
+  //--------------------------------------------------
+  // Generate gap wheel
+  //--------------------------------------------------
 
   final gaps = <int>[];
 
@@ -60,145 +83,68 @@ void main() {
     );
   }
 
-  print('Gap Count : ${gaps.length}');
-
-  //----------------------------------------------------
-  // Capture first wheel
-  //----------------------------------------------------
-
-  final wheel = gaps.sublist(0, wheelLength);
-
-  //----------------------------------------------------
-  // Save wheel to file
-  //----------------------------------------------------
-
-  const outputFile =
-      r'C:\Users\kvoccola\Documents\bigwheel.txt';
-
-  print('\nSaving wheel file...');
-
-  File(outputFile).writeAsStringSync(
-    wheel.join(','),
+  // Wrap-around gap
+  gaps.add(
+    wheelSize +
+        survivors.first -
+        survivors.last,
   );
 
-  print('Saved to: $outputFile');
+  //--------------------------------------------------
+  // Convert to Uint16 binary
+  //--------------------------------------------------
 
-  //----------------------------------------------------
-  // Statistics
-  //----------------------------------------------------
+  final wheelData =
+      Uint16List.fromList(gaps);
 
-  print('\n====================================');
-  print('WHEEL STATISTICS');
-  print('====================================');
+  //--------------------------------------------------
+  // Ensure folder exists
+  //--------------------------------------------------
 
-  print('Wheel Size   : $wheelSize');
-  print('Wheel Period : $wheelLength');
-  print('Total Gaps   : ${gaps.length}');
-  print(
-    'Full Cycles  : ${gaps.length ~/ wheelLength}',
-  );
-  print(
-    'Remainder    : ${gaps.length % wheelLength}',
+  final outputDir = Directory(
+    r'assets\wheels',
   );
 
-  //----------------------------------------------------
-  // First wheel boundary
-  //----------------------------------------------------
-
-  print('\n====================================');
-  print('FIRST WHEEL BOUNDARY');
-  print('====================================');
-
-  print(
-    'Gap Index Where Wheel #2 Starts : $wheelLength',
-  );
-
-  print(
-    'Last Survivor In Wheel #1      : '
-    '${survivors[wheelLength - 1]}',
-  );
-
-  print(
-    'First Survivor In Wheel #2     : '
-    '${survivors[wheelLength]}',
-  );
-
-  print(
-    'Boundary Gap                   : '
-    '${gaps[wheelLength - 1]}',
-  );
-
-  print(
-    'Expected Number Boundary       : '
-    '$wheelSize',
-  );
-
-  //----------------------------------------------------
-  // Verify repetition
-  //----------------------------------------------------
-
-  print('\n====================================');
-  print('VERIFYING REPETITION');
-  print('====================================');
-
-  int mismatches = 0;
-
-  for (int i = wheelLength; i < gaps.length; i++) {
-    final expectedGap =
-        wheel[i % wheelLength];
-
-    final actualGap =
-        gaps[i];
-
-    if (actualGap != expectedGap) {
-      mismatches++;
-
-      print('\nMismatch #$mismatches');
-
-      print(
-        'Gap Index      : $i',
-      );
-
-      print(
-        'Wheel Position : ${i % wheelLength}',
-      );
-
-      print(
-        'Expected Gap   : $expectedGap',
-      );
-
-      print(
-        'Actual Gap     : $actualGap',
-      );
-
-      if (mismatches >= 20) {
-        break;
-      }
-    }
-
-    if (i % 5000000 == 0) {
-      print(
-        'Verified ${i.toString().padLeft(10)} gaps...',
-      );
-    }
-  }
-
-  //----------------------------------------------------
-  // Final results
-  //----------------------------------------------------
-
-  print('\n====================================');
-  print('FINAL RESULTS');
-  print('====================================');
-
-  if (mismatches == 0) {
-    print(
-      'SUCCESS: Entire gap sequence repeats every '
-      '$wheelLength gaps.',
-    );
-  } else {
-    print(
-      'FAILED: Found $mismatches mismatches.',
+  if (!outputDir.existsSync()) {
+    outputDir.createSync(
+      recursive: true,
     );
   }
+
+  //--------------------------------------------------
+  // Save wheel
+  //--------------------------------------------------
+
+  final outputFile = File(
+    '${outputDir.path}\\$name.bin',
+  );
+
+  outputFile.writeAsBytesSync(
+    wheelData.buffer.asUint8List(),
+  );
+
+  //--------------------------------------------------
+  // Summary
+  //--------------------------------------------------
+
+  print('Prime Set   : ${primes.join(", ")}');
+  print('Wheel Size  : $wheelSize');
+  print('Wheel Length: ${gaps.length}');
+  print(
+    'File Size   : ${wheelData.lengthInBytes} bytes',
+  );
+  print(
+    'Saved       : ${outputFile.path}',
+  );  
+  print(
+  'Start Value : ${survivors[survivors.length - 2]}',
+);
+
+print(
+  'Last Survivor : ${survivors.last}',
+);
+
+print(
+  'First Gap : ${gaps.first}',
+);
 }

@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:prime_discovery/engine/prime_discovery_engine.dart';
+
 import '../data_management/startup_manager.dart';
 
+//bool initialRun = false;
 Future<void> main() async {
-    //final RecoveryData recoveryData;
-    //final ConfigData configData;
-
   Query curious = Query();
-  await curious.initialRunQuery();
+  await curious.initialRunQuery(); //in startup_manager
 
-    PrimeDiscoveryEngine engine = PrimeDiscoveryEngine(curious.recoveryData,
-  curious.configData, curious.sessionData,);
+  PrimeDiscoveryEngine engine = PrimeDiscoveryEngine(
+    curious.recoveryData,
+    curious.configData,
+    curious.sessionData,
+    curious.perSecondData,
+    curious.per1MinuteData,
+    curious.perMillionData,
+    curious.cycleStatisticsData,
+    curious.sessionStatisticsData,
+  );
 
   engine.discoverPrimes();
   runApp(const MyApp());

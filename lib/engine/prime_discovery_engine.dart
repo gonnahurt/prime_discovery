@@ -2,8 +2,51 @@
 Author: Kvoc
 Erosthenes Sieve
 Date Started: 10/29/26
-Last Worked:  11/01/26
+Last Worked:  11/14/26
 =============================*/
+
+// TODO:
+// Time checks currently occur every candidate.
+// In the distant future a single candidate may take
+// several seconds to evaluate.
+// Investigate checking time every N comparisons
+// (100k? 1M?) and benchmark actual cost.
+
+// TODO: Prime determination refactor
+//
+// primeSmall() and primeAverage() contain very similar
+// primality determination logic.
+//
+// Investigate creating a shared function that:
+//   - determines if a candidate is prime
+//   - returns true/false
+//
+// Consider whether the function should:
+//   - return a bool
+//   - modify isPrime
+//   - handle processLocatedPrime/processCandidateNotPrime
+//
+// Revisit after statistics system is working.
+//The following segment is similar for both primeSmall & primeAverage
+//create a shared method??
+// int rootSmall = sqrt(primeSmall).floor();
+// while (rootSmall >= initialPrimes[initPrime] && isPrime) {
+//   if (primeSmall % initialPrimes[initPrime] == 0) {
+//     initPrime = 0;
+//     isPrime = false;
+//   } else {
+//     initPrime++;
+//   }
+// } //while
+
+// if (isPrime) {
+//   initPrime = 0;
+//   processLocatedPrime(primeSmall);
+// } else {
+//   isPrime = true;
+//   initPrime = 0;
+//   processCandidateNotPrime();
+// }
 
 //import 'dart:convert';
 import 'dart:math';
@@ -14,18 +57,38 @@ import 'dart:typed_data';
 import '../data_management/json_manager.dart';
 import '../data_management/file_manager.dart';
 import '../data_management/statistics_manager.dart';
+import '../data_management/time_manager.dart';
+
+import '../utilities/formatters.dart';
 
 import '../models/config_model.dart';
 import '../models/recovery_model.dart';
 import '../models/session_model.dart';
+import '../models/statistics_model.dart';
+import 'process_determined_prime.dart';
 
 class PrimeDiscoveryEngine {
   // #region Discovery State
   final RecoveryData recoveryData;
   final ConfigData configData;
   final SessionData sessionData;
+  final PerTenSecondsStatisticsModel perTenSecondsStatisticsModel;
+  final Per1MinuteStatisticsModel per1MinuteStatisticsModel;
+  final PerMillionStatisticsModel perMillionStatisticsModel;
+  final CycleStatisticsModel cycleStatisticsModel;
+  final SessionStatisticsModel sessionStatisticsModel;
+  //final ProcessDeterminedPrime processDeterminedPrime;
 
-  PrimeDiscoveryEngine(this.recoveryData, this.configData, this.sessionData);
+  PrimeDiscoveryEngine(
+    this.recoveryData,
+    this.configData,
+    this.sessionData,
+    this.perTenSecondsStatisticsModel,
+    this.per1MinuteStatisticsModel,
+    this.perMillionStatisticsModel,
+    this.cycleStatisticsModel,
+    this.sessionStatisticsModel,
+  );
   //========================================================================
   // BOOTSTRAP PRIMES
   //========================================================================
@@ -49,7 +112,7 @@ final initialPrimes = List<int>.of([
   // PRIME STORAGE
   //========================================================================
 
-  Int64List primeCache = Int64List(150000000);
+  Int64List primeCache = Int64List(156000000);
   int walker = 0;
 
   Int64List buffer1 = Int64List(13000000);
@@ -81,7 +144,7 @@ final primeWheel = List<int>.of([
 ], growable: false);
 // dart format on
 
-  int wheelPosition = 0;
+  //int wheelPosition = 0;
   final int lastWalker = 47;
 
   //========================================================================
@@ -93,60 +156,19 @@ final primeWheel = List<int>.of([
   bool cycleStartTime = true;
   bool isPrime = true;
 
+  bool time10Seconds = false;
+  bool time1Minute = false;
+
   //first time application run this Cycle
   //(cycle being all runs included through recovery)
   DateTime initialCycleRunTime = DateTime.now();
   //Start time of this session when started from last break
   DateTime initialSessionRunTime = DateTime.now();
-  int totalRuntime = 0;
-  int currentRuntime = 0;
-
-  int currentPrime = 2;
-  int lastPrime = 2;
 
   int maxInt64 = 9223372036854775807;
 
-  int gapSumTotal = 1;
-  int millGapSumTotal = 1;
-  //========================================================================
-  // COUNTERS
-  //========================================================================
-
-  int candidatesCount = 0;
-  int numPrimes = 1;
-
-  int gapSum = 0;
-  int numGaps = 1;
-  int millNumGaps = 1;
-
-  int prevCandidateCount = 3;
-  int prevPrimeCount = 2;
-
-  int wastedChecks = 0;
-
-  //========================================================================
-  // RECOVERY / FILE MANAGEMENT
-  //========================================================================
-
-  //static const String primeStoragePath = r'P:\PrimeDiscovery';
-
-  //int fileCount = 1;
-  //int version = 1;
-
-  //String fileNameLog = "00000statistics.log";
-  //String fileNameJSON = "00000state.json";
-
-  Duration fiveMins = const Duration(milliseconds: 300000);
-
-  //========================================================================
-  // STATISTICS
-  //========================================================================
-
-
-
-  int prevCandidate = 1;
-  int prevDiscovered = 1;
-
+  DateTime recoveryState = DateTime.now(); //initialize initial run point
+  int startingTime = DateTime.now().millisecondsSinceEpoch;
   //========================================================================
   // BIGINT SUPPORT (FUTURE)
   //========================================================================
@@ -156,22 +178,25 @@ final primeWheel = List<int>.of([
 
   Future<void> discoverPrimes() async {
     //DateTime start = DateTime.now();
-    DateTime recoveryState = DateTime.now(); //initialize initial run point
-    DateTime runStats = DateTime.now(); //Initialize statistics update time
-    //DateTime current = DateTime.now(); //Initialize current runtime
-    //DateTime total = DateTime.now(); //Initialize total runtime
 
-    Duration recoverTime = DateTime.now().difference(recoveryState);
-    //initialCycleRunTime = DateTime.now();
+    // DateTime runStats = DateTime.now(); //Initialize statistics update time
+    // Duration recoverTime = DateTime.now().difference(recoveryState);
+    // int time10SecStart = DateTime.now().millisecondsSinceEpoch;
+    // int time1MinStart = DateTime.now().millisecondsSinceEpoch;
 
-    //==============================================================
-    //primeTiny handles determination for numbers from 3 - 20
-    //it only avoids even numbers by primeTiny +=2 in the for loop
-    //==============================================================
+    await primeTiny();
+    await primeSmall();
+    await primeAverage();
+  }
+
+  //==============================================================
+  //primeTiny handles determination for numbers from 3 - 20
+  //it only avoids even numbers by primeTiny +=2 in the for loop
+  //==============================================================
+  Future<void> primeTiny() async {
     for (int primeTiny = 3; primeTiny < 21; primeTiny += 2) {
-      candidatesCount++;
       recoveryData.numGaps++; //each pass we have a gap of 2
-      recoveryData.millNumGaps++;
+      perMillionStatisticsModel.millNumGaps++;
       // gapSum += 2;
       // millGapSum += 2;
       while (primeTiny > initialPrimes[initPrime] && isPrime) {
@@ -183,40 +208,38 @@ final primeWheel = List<int>.of([
         }
       }
       if (isPrime) {
-        processLocatedPrime(primeTiny);
+        processDeterminedPrime(
+          primeTiny,
+          recoveryData,
+          sessionData,
+          per1MinuteStatisticsModel,
+          perTenSecondsStatisticsModel,
+        );
       } else {
         isPrime = true;
         initPrime = 0;
+        processCandidateNotPrime();
       }
-
 
       initPrime = 0;
     }
-    // 20 - 3 = 17 total integers : 
-    //candidatesCount = 9 : 
-    //20 = last int checked : 
-    //num primes = 7 : 
-    //7 primes in 17 integers is 42% : 
-    //9 candidates in 18 total integers is 50% of all integers processed
-    //=============
-    //End primeTiny
-    //=============
+  }
+  //=============
+  //End primeTiny
+  //=============
 
-    //==========================================================
-    //PrimeSmall handles determination for ints between 21 - 198
-    //primeSmall uses a wheel to avoid multiples of 2 & 5
-    //==========================================================
+  //==========================================================
+  //PrimeSmall handles determination for ints between 21 - 198
+  //primeSmall uses a wheel to avoid multiples of 2 & 5
+  //==========================================================
+  Future<void> primeSmall() async {
     bool firstRun = true;
-    //198 - 21 = 177 total integers : candidatesCount = 9 : 197 = last int checked : num primes = 7 : 7 primes in 17 integers is 42% : 9 candidates in 18 total integers is 50% of all integers processed
-    //lastInitPrime - primeSmall = 177 : CandidateCount = ? : lastPrime =
+
     for (
       int primeSmall = 21;
-      primeSmall < lastInitPrime;
+      primeSmall < lastInitPrime; //lastInitPrime = 199
       primeSmall += miniWheel[miniWalker]
     ) {
-      candidatesCount++;
-      //gapSum += miniWheel[miniWalker];
-      //millGapSum += miniWheel[miniWalker];
       int rootSmall = sqrt(primeSmall).floor();
       while (rootSmall >= initialPrimes[initPrime] && isPrime) {
         if (primeSmall % initialPrimes[initPrime] == 0) {
@@ -229,10 +252,17 @@ final primeWheel = List<int>.of([
 
       if (isPrime) {
         initPrime = 0;
-        processLocatedPrime(primeSmall);
+        processDeterminedPrime(
+          primeSmall,
+          recoveryData,
+          sessionData,
+          per1MinuteStatisticsModel,
+          perTenSecondsStatisticsModel,
+        );
       } else {
         isPrime = true;
         initPrime = 0;
+        processCandidateNotPrime();
       }
       //======================================
       //Wheel for primeSmall
@@ -241,34 +271,39 @@ final primeWheel = List<int>.of([
       //avoiding mutiples of 2 & 5
       //======================================
       if (!firstRun) {
-        if (miniWalker < lastMini) {
+        if (recoveryData.wheelPosition < lastMini) {
           recoveryData.wheelPosition++;
         } else {
           recoveryData.wheelPosition = 0;
         }
         recoveryData.numGaps++;
-        recoveryData.millNumGaps++;
+        perMillionStatisticsModel.millNumGaps++;
       }
       firstRun = false;
     }
-    //==============
-    //End primeSmall
-    //==============
+  }
+  //==============
+  //End primeSmall
+  //==============
 
-    //============================================
-    //primeAverage handles ints
-    //199 - 9223372036854775807 aka maxInt64
-    //uses a wheel to avoid multiples of 2,3,5 & 7
-    //============================================
+  //============================================
+  //primeAverage handles ints
+  //199 - 9223372036854775807 aka maxInt64
+  //uses a wheel to avoid multiples of 2,3,5 & 7
+  //CREATED additional wheels to avoid multiples
+  //of 11,13,17 & 19 forgot to write down when they
+  //kick in.
+  //============================================
+  Future<void> primeAverage() async {
     firstRun = true;
 
     for (
       int primeAverage = lastInitPrime;
       primeAverage < maxInt64;
-      primeAverage += primeWheel[wheelPosition]
+      primeAverage += primeWheel[recoveryData.wheelPosition]
     ) {
       //for each candidate
-      candidatesCount++;
+      //recoveryData.currentCandidateCount++;
       // gapSum += primeWheel[primeWalker];
       // millGapSum += miniWheel[miniWalker];
       int rootSmall = sqrt(primeAverage).floor(); //sqrt of current candidate
@@ -284,7 +319,13 @@ final primeWheel = List<int>.of([
       if (isPrime) {
         initPrime = 4; //since the wheel avoids all items divisible by 2, 3, 5, & 7 these checks are redundant
         primeCache[walker] = primeAverage;
-        processLocatedPrime(primeAverage);
+        processDeterminedPrime(
+          primeAverage,
+          recoveryData,
+          sessionData,
+          per1MinuteStatisticsModel,
+          perTenSecondsStatisticsModel,
+        );
         walker++;
 
         if (walker % 13000000 == 0) {
@@ -301,17 +342,19 @@ final primeWheel = List<int>.of([
           await jsonWrite(
             recoveryData,
             configData,
+            perMillionStatisticsModel,
           ); //UPDATE recovery json file every time new bin file is created.
 
           recoveryState = DateTime.now(); //reset json update time
           //call function to asynchronously write to file
-          await writeFile(recoveryData, primeCache);
+          await writeFile(recoveryData, configData, primeCache);
           recoveryData.fileCount++;
         }
         //End Create File
       } else {
         isPrime = true;
         initPrime = 4;
+        processCandidateNotPrime();
       }
 
       //=====================================
@@ -321,68 +364,21 @@ final primeWheel = List<int>.of([
       //skipping numbers divisible by 2,3,5,7
       //=====================================
       if (!firstRun) {
-        if (wheelPosition < lastWalker) {
+        if (recoveryData.wheelPosition < lastWalker) {
           recoveryData.wheelPosition++;
         } else {
           recoveryData.wheelPosition = 0;
         }
         recoveryData.numGaps += 1;
-        recoveryData.millNumGaps += 1;
+        perMillionStatisticsModel.millNumGaps += 1;
       }
 
       firstRun = false;
-
-      //check if 5 minutes have passed and update json when it has
-      DateTime end = DateTime.now();
-      Duration recoverTime = end.difference(recoveryState);
-      if (recoverTime >= fiveMins) {
-        await jsonWrite(
-          recoveryData,
-          configData,
-        ); //UPDATE recovery json file every time new bin file is created.}
-        recoveryState = DateTime.now(); //reset json update time
-      }
-
-      Duration statsEverySec = end.difference(runStats);
-      if (statsEverySec.inMilliseconds >= 1000) {
-        //prevCandidate = candidatesCount;
-        String display = await runStatistics(
-          recoveryData: recoveryData,
-          configData: configData,
-          sessionData: sessionData,
-          currentPrime: currentPrime,
-          candidatesCount: candidatesCount,
-          prevCandidateCount: prevCandidate,
-          prevDiscovered: prevDiscovered,
-          primesDiscoveredLastSec: numPrimes,
-        );
-        print(display);
-        appendToLog(
-          formattedStats: display,
-          recoveryData: recoveryData,
-          //'${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}',
-          //currentDriveLetter: recoveryData.currentDriveLetter,
-          //primeStorageFolderName: recoveryData.primeStorageFolderName,
-          //fileName: configData.fileNameLog,
-          configData: configData,
-        );
-        prevCandidate = candidatesCount;
-        prevDiscovered = numPrimes;
-        runStats = DateTime.now();
-      }
-      //recoverTime = DateTime.now().difference(recoveryState);
     }
-    //================
-    //End primeAverage
-    //================
-
-    print('$numPrimes primes determined');
-    print('$candidatesCount numbers checked for primality');
-    //Duration recoverTime = DateTime.now().difference(recoveryState);
-
-    print('first 13 Million Determined in: ${recoverTime.inSeconds} seconds');
-    //print('first 13 Million Determined in: ${end.difference(start).inMilliseconds} ms');
   }
+  //================
+  //End primeAverage
+  //================
 
   //============================================
   //Smooth List transitions when reading primes
@@ -405,52 +401,39 @@ final primeWheel = List<int>.of([
     throw Exception('getNextRead() unsupported index: $initPrime');
   }
 
-  String commas(int n) {
-    return n.toString().replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => ',',
-    );
-  }
-
   int seconds(int ms) {
     return (ms / 1000).floor();
   }
 
   Future<void> recoveryRestart() async {
     //assign critical variables
-    final Map<String, dynamic> data = await jsonRead(recoveryData, configData);
-    recoveryData.versionNum = data['version'];
-    recoveryData.fileCount = data['fileCount'];
-    recoveryData.numPrimes = data['numPrimes'];
-    recoveryData.currentPrime = data['currentPrime'];
-    recoveryData.wheelPosition = data['wheelPosition'];
-    recoveryData.cycleStartTime = data['dateTimeCycleRun']; //First Time application ran for this cycle where cycle = on again off again usage without a restart from scratch
-    recoveryData.totalRuntime = data['totalTimeActive'];
-    recoveryData.primeStorageFolderName = data['primeStorageFolderName'];
-    recoveryData.currentDriveLetter = data['currentDriveLetter'];
-    //recoveryData.primeStoragePath:  '${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}',
-    recoveryData.numGaps = data['numGaps'];
-    recoveryData.gapSumTotal = data['gapSumTotal'];
-    recoveryData.millNumGaps = data['millNumGaps'];
-    recoveryData.millGapSumTotal = data['millGapSumTotal'];
-    recoveryData.largestGap = data['largestGap'];
+    await jsonRecovery(recoveryData, configData, perMillionStatisticsModel);
   }
 
-      void processLocatedPrime(int determinedPrime) {
-        recoveryData.numPrimes = recoveryData.numPrimes++;
-        lastPrime = currentPrime;
-        sessionData.priorPrime = recoveryData.currentPrime;
-        recoveryData.currentPrime = determinedPrime;
-        recoveryData.numGaps = recoveryData.numGaps++;
-        gapSum += (currentPrime - lastPrime);
-        largestGapBetweenPrimes();
-      }
-      
-  void largestGapBetweenPrimes() {
+  void processCandidateNotPrime() {
+    //10 SECOND
+    perTenSecondsStatisticsModel.candidateCount10Sec++;
+    //1 MINUTE
+    per1MinuteStatisticsModel.candidateCount1Min++;
+    //1 MILLION
+    perMillionStatisticsModel.currentMillionCandidateCount++;
+    //SESSION
+
+    //CYCLE - RECOVERY
+    recoveryData.currentCandidateCount++;
+
+    //Time Check
+    timeCheckController(
+      perTenSecondsStatisticsModel,
+      per1MinuteStatisticsModel,
+      recoveryData,
+    );
+  }
+
+  //to be handled by statistics
+  /*   void largestGapBetweenPrimes() {
     if (gapSum > recoveryData.largestGap) {
       recoveryData.largestGap = recoveryData.gapSumTotal;
     }
-  }
-
-  Future<void> wheelSelect() async {}
+  } */
 }

@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:prime_discovery/models/config_model.dart';
-
-import '../models/recovery_model.dart';
+import 'package:prime_discovery/models/recovery_model.dart';
+import 'package:prime_discovery/models/statistics_model.dart';
 
 //=======================
 //All things JSON related
@@ -16,7 +16,7 @@ Future<bool> jsonSearch(
   ConfigData configData,
 ) async {
   File file = File(
-    '${recoveryData.primeStorageFolderName}\\${configData.fileNameJson}',
+    '${configData.primeStorageFolderName}\\${configData.fileNameJson}',
   );
   // Validate file existence
   return !await file.exists();
@@ -26,28 +26,29 @@ Future<bool> jsonSearch(
 Future<void> jsonCreate(
   RecoveryData recoveryData,
   ConfigData configData,
-  DateTime initialRunTime,
+  PerMillionStatisticsModel perMillionData,
+  int initialRunTime,
 ) async {
   final Map<String, dynamic> stateData = {
     "version": recoveryData.versionNum,
     "fileCount": recoveryData.fileCount,
-    "numPrimes": recoveryData.numPrimes,
+    "primesDiscoveredCount": recoveryData.primesDiscoveredCount,
     "lastPrime": recoveryData.currentPrime,
     "currentPrime": recoveryData.currentPrime,
     "wheelPosition": recoveryData.wheelPosition,
     "dateTimeCycleRun": recoveryData.cycleStartTime,
     "totalTimeActive": recoveryData.totalRuntime,
-    "primeStorageFolderName": recoveryData.primeStorageFolderName,
-    "currentDriveLetter": recoveryData.currentDriveLetter,    
+    "primeStorageFolderName": configData.primeStorageFolderName,
+    "currentDriveLetter": configData.currentDriveLetter,
     "numberOfGaps": recoveryData.numGaps,
     "sumOfAllGaps": recoveryData.gapSumTotal,
-    "numOfGapsInLastMillion": recoveryData.millNumGaps,
-    "sumOfGapsInLastMillion": recoveryData.millGapSumTotal,
+    "numOfGapsInLastMillion": perMillionData.millNumGaps,
+    "sumOfGapsInLastMillion": perMillionData.millGapSumTotal,
     "largestGapFound": recoveryData.largestGap,
   };
 
   File jsonFile = File(
-    '${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}\\${configData.fileNameJson}',
+    '${configData.currentDriveLetter}${configData.primeStorageFolderName}\\${configData.fileNameJson}',
   );
 
   try {
@@ -66,27 +67,31 @@ Future<void> jsonCreate(
 } //End jsonCreate
 
 //Write to JSON file
-Future<void> jsonWrite(RecoveryData recoveryData, ConfigData configData) async {
+Future<void> jsonWrite(
+  RecoveryData recoveryData,
+  ConfigData configData,
+  PerMillionStatisticsModel perMillionData,
+) async {
   final Map<String, dynamic> stateData = {
     "version": recoveryData.versionNum,
     "fileCount": recoveryData.fileCount,
-    "numPrimes": recoveryData.numPrimes,
-    "lastPrime": recoveryData.currentPrime,
+    "primesDiscoveredCount": recoveryData.primesDiscoveredCount,
+    //"lastPrime": recoveryData.currentPrime,
+    "currentPrime": recoveryData.currentPrime,
     "wheelPosition": recoveryData.wheelPosition,
     "dateTimeCycleRun": recoveryData.cycleStartTime,
-    //"dateTimeSessionRun": configData.sessionStartTime,
     "totalTimeActive": recoveryData.totalRuntime,
-    "primeStorageFolderName": recoveryData.primeStorageFolderName,
-    "primeStorageDriveLetter": recoveryData.currentDriveLetter,
+    "primeStorageFolderName": configData.primeStorageFolderName,
+    "currentDriveLetter": configData.currentDriveLetter,
     "numberOfGaps": recoveryData.numGaps,
     "sumOfAllGaps": recoveryData.gapSumTotal,
-    "numOfGapsInLastMillion": recoveryData.millNumGaps,
-    "sumOfGapsInLastMillion": recoveryData.millGapSumTotal,
+    "numOfGapsInLastMillion": perMillionData.millNumGaps,
+    "sumOfGapsInLastMillion": perMillionData.millGapSumTotal,
     "largestGapFound": recoveryData.largestGap,
-  }; 
+  };
 
   final File jsonFile = File(
-    '${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}\\${configData.fileNameJson}',
+    '${configData.currentDriveLetter}${configData.primeStorageFolderName}\\${configData.fileNameJson}',
   );
 
   try {
@@ -105,13 +110,34 @@ Future<void> jsonWrite(RecoveryData recoveryData, ConfigData configData) async {
 } //End jsonWrite
 
 //Read from JSON file
-Future<Map<String, dynamic>> jsonRead(
+Future<void> jsonRecovery(
   RecoveryData recoveryData,
   ConfigData configData,
+  PerMillionStatisticsModel perMillionStatisticsModel,
 ) async {
-  final String jsonString = await File(
-    '${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}\\${configData.fileNameJson}',
-  ).readAsString();
-  return jsonDecode(jsonString) as Map<String, dynamic>;
+  final File jsonFile = File(
+    '${configData.currentDriveLetter}'
+    '${configData.primeStorageFolderName}\\'
+    '${configData.fileNameJson}',
+  );
+
+  final String jsonString = await jsonFile.readAsString();
+
+  final Map<String, dynamic> data = jsonDecode(jsonString);
+
+  recoveryData.versionNum = data['version'];
+  recoveryData.fileCount = data['fileCount'];
+  recoveryData.primesDiscoveredCount = data['primesDiscoveredCount'];
+  recoveryData.currentPrime = data['currentPrime'];
+  recoveryData.wheelPosition = data['wheelPosition'];
+  recoveryData.cycleStartTime = data['dateTimeCycleRun'];
+  recoveryData.totalRuntime = data['totalTimeActive'];
+  configData.primeStorageFolderName = data['primeStorageFolderName'];
+  configData.currentDriveLetter = data['currentDriveLetter'];
+  recoveryData.numGaps = data['numberOfGaps'];
+  recoveryData.gapSumTotal = data['sumOfAllGaps'];
+  perMillionStatisticsModel.millNumGaps = data['numOfGapsInLastMillion'];
+  perMillionStatisticsModel.millGapSumTotal = data['sumOfGapsInLastMillion'];
+  recoveryData.largestGap = data['largestGapFound'];
 } //End jsonRead
 //End - File

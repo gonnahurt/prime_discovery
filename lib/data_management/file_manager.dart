@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:prime_discovery/models/recovery_model.dart';
+import 'package:prime_discovery/models/config_model.dart';
 //import '../engine/prime_discovery_engine.dart';
   
   //======================
@@ -11,6 +12,7 @@ import 'package:prime_discovery/models/recovery_model.dart';
   //======================
   Future<void> writeFile(
     RecoveryData recoveryData,
+    ConfigData configData,
     Int64List primeCache) async {
     // Create a space-separated string from the array
     try {
@@ -20,7 +22,7 @@ import 'package:prime_discovery/models/recovery_model.dart';
       String formatted = recoveryData.fileCount.toString().padLeft(5, '0');
       String fileName = '${formatted}prime.dat';
 
-      File file = File('${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}\\${fileName}');
+      File file = File('${configData.currentDriveLetter}${configData.primeStorageFolderName}\\${fileName}');
 
       // Write asynchronously to .dat file
       await file.writeAsBytes(primeCache.buffer.asUint8List());
@@ -38,6 +40,7 @@ import 'package:prime_discovery/models/recovery_model.dart';
   //=======================
   Future<List<int>> readBinary({
     required RecoveryData recoveryData,
+    required ConfigData configData,
     Endian endian = Endian.little}) async {
     //format numeric part of file name to always be 5 digits
     String formatted = recoveryData.fileCount.toString().padLeft(5, '0');
@@ -46,7 +49,7 @@ import 'package:prime_discovery/models/recovery_model.dart';
 
     // Validate file existence
     if (!await file.exists()) {
-      throw FileSystemException("File not found", ('${recoveryData.currentDriveLetter}${recoveryData.primeStorageFolderName}\\${fileName}'));
+      throw FileSystemException("File not found", ('${configData.currentDriveLetter}${configData.primeStorageFolderName}\\${fileName}'));
     }
 
     // Read all bytes from the file

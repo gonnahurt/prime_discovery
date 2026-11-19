@@ -1,14 +1,8 @@
-import 'dart:io';
-import 'dart:async';
-
 import 'package:prime_discovery/models/recovery_model.dart';
-import 'package:prime_discovery/models/config_model.dart';
 import 'package:prime_discovery/models/session_model.dart';
 import 'package:prime_discovery/models/statistics_model.dart';
 
 import '../constants/time_constants.dart';
-
-import '../engine/process_determined_prime.dart';
 
 //***10 SECONDS***\\
 class PerTenSecondsStatisticsService {
@@ -100,32 +94,6 @@ class PerMinuteStatisticsService {
         count *
         100);
   }
-
-  // int timeBetweenPrimesLongest(
-  //   RecoveryData recoveryData,
-  //   Per1MinuteStatisticsModel per1MinuteStatisticsModel,
-  // ) {
-  //   //PlaceHolder - determined in process_determined_prime.dart
-  //   return (per1MinuteStatisticsModel
-  //       .gapTimeBetweenPrimesDetermined1MinLongest);
-  // }
-
-  // //PlaceHolder - determined in process_determined_prime.dart
-  // int timeBetweenPrimesShortest(
-  //   RecoveryData recoveryData,
-  //   Per1MinuteStatisticsModel per1MinuteStatisticsModel,
-  // ) {
-  //   return (per1MinuteStatisticsModel
-  //       .gapTimeBetweenPrimesDetermined1MinShortest);
-  // }
-
-  // double timeBetweenPrimesAverage(
-  //   RecoveryData recoveryData,
-  //   Per1MinuteStatisticsModel per1MinuteStatisticsModel,
-  // ) {
-  //   double primeAvg = (per1MinuteStatisticsModel.gapTimeSum1Min / oneMinute);
-  //   return (primeAvg);
-  // }
 
   int shortestTimeGapBetweenPrimes(
     Per1MinuteStatisticsModel per1MinuteStatisticsModel,

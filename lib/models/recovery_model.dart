@@ -4,8 +4,9 @@ class RecoveryData {
   int fileCount;
 
   // Prime Discovery
-  int primesDiscoveredCount;
   int currentPrime;
+  int primesDiscoveredCount;
+  int currentCandidate;
   int currentCandidateCount;
 
   // Wheel State
@@ -21,14 +22,13 @@ class RecoveryData {
   int gapSumTotal;
   int largestGap;
 
-
-
   RecoveryData({
     required this.versionNum,
     required this.fileCount,
 
-    required this.primesDiscoveredCount,
     required this.currentPrime,
+    required this.primesDiscoveredCount,
+    required this.currentCandidate,
     required this.currentCandidateCount,
 
     required this.wheelPosition,
@@ -40,17 +40,16 @@ class RecoveryData {
     required this.numGaps,
     required this.gapSumTotal,
     required this.largestGap,
-
-
   });
 
   RecoveryData.initial()
     : versionNum = 1,
       fileCount = 1,
 
-      primesDiscoveredCount = 1,
       currentPrime = 2,
-      currentCandidateCount = 0,
+      primesDiscoveredCount = 0,
+      currentCandidate = 2,
+      currentCandidateCount = 1,
 
       wheelPosition = 0,
 
@@ -61,5 +60,4 @@ class RecoveryData {
       numGaps = 1,
       gapSumTotal = 1,
       largestGap = 2;
-
 }

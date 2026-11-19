@@ -47,7 +47,7 @@ import 'package:prime_discovery/models/statistics_model.dart';
 import 'package:prime_discovery/services/statistics_service.dart';
 
 import '../utilities/formatters.dart';
-import '../engine/process_determined_prime.dart';
+import '../engine/process_candidate_prime.dart';
 import 'time_manager.dart';
 
 // For All (10 Sec, 1 min, 1 million, cycle & session)

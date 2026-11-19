@@ -3,16 +3,23 @@ import 'package:prime_discovery/models/session_model.dart';
 import 'package:prime_discovery/models/statistics_model.dart';
 import 'package:prime_discovery/data_management/time_manager.dart';
 
-void processDeterminedPrime(
+void processCandidatePrime(
   int determinedPrime,
   RecoveryData recoveryData,
   SessionData sessionData,
   Per1MinuteStatisticsModel per1MinuteStatisticsModel,
   PerTenSecondsStatisticsModel perTenSecondsStatisticsModel,
 ) {
+  //increment prime count
   recoveryData.primesDiscoveredCount = recoveryData.primesDiscoveredCount + 1;
+
+  //priorPrime assigned currentPrime value - unsure if I need this
   sessionData.priorPrime = recoveryData.currentPrime;
+
+  //Store new prime in recovery Data
   recoveryData.currentPrime = determinedPrime;
+
+  //increment numGaps
   recoveryData.numGaps++;
 
   //10sec

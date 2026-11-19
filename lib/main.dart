@@ -19,7 +19,7 @@ Future<void> main() async {
     curious.sessionStatisticsData,
   );
 
-  engine.discoverPrimes();
+  engine.primeDetermination();
   runApp(const MyApp());
 }
 
